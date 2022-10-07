@@ -9,12 +9,17 @@ let inParticlesBuffer, outParticlesBuffer, quadBuffer;
 // Total number of particles
 const N_PARTICLES = 100000;
 
-let drawPoints = true;
-let drawField = true;
-
 let time = undefined;
 let mousePosition = [0.0, 0.0];
-let mousePressed = false;
+
+let flags = {
+    drawPoints: true,
+    drawField:  true,
+    mouseDown: false,
+    shiftDown: false,
+    setPlanet: false,
+    setOrigin: false,
+}
 
 let userConstants = {
     uTvmin: 2.0,
@@ -27,7 +32,7 @@ let userConstants = {
 }
 
 const MAX_PLANETS = 10;
-let bodies = [];
+let planets = [];
 
 function main(shaders)
 {
@@ -65,6 +70,7 @@ function main(shaders)
 
     window.addEventListener("keydown", function(event) {
         // TODO: Implement user constants
+        flags.shiftDown = event.shiftKey;
         
         switch(event.key) {
             case "PageUp":
@@ -88,19 +94,32 @@ function main(shaders)
             case 's':
                 break;
             case '0':
-                drawField = !drawField;
+                flags.drawField = !flags.drawField;
                 break;
             case '9':
-                drawPoints  = !drawPoints;
+                flags.drawPoints  = !flags.drawPoints;
                 break; 
             case 'Shift':
+                break;
         }
+    })
+
+    window.addEventListener("keyup", function(event) {
+        flags.shiftDown = event.shiftKey;
     })
     
     canvas.addEventListener("mousedown", function(event) {
-        if (bodies.length == MAX_PLANETS) return;
-        bodies.push({position: mousePosition, radius: 0.0});
-        mousePressed = true;
+        flags.mouseDown = true;
+
+        if (flags.shiftDown) {
+            userConstants.uOrigin = mousePosition;
+            flags.setOrigin = flags.shiftDown;
+        }
+
+        if (planets.length < MAX_PLANETS && !flags.shiftDown) {
+            planets.push({position: mousePosition, radius: 0.0});
+            flags.setPlanet = true;
+        }
     });
 
     canvas.addEventListener("mousemove", function(event) {
@@ -114,18 +133,32 @@ function main(shaders)
 
         mousePosition = vec2(x * w, y * h);
 
-        if (mousePressed) {
-            let body = bodies[bodies.length - 1];
+        if (flags.setPlanet) {
+            let body = planets[planets.length - 1];
             let [bx, by] = body.position;
             let [mx, my] = mousePosition;
             let dx = mx - bx;
             let dy = my - by;
             body.radius = Math.sqrt(dx * dx + dy * dy);
         }
+
+        if (flags.setOrigin) {
+            userConstants.uOrigin = mousePosition;
+        }
     });
 
     canvas.addEventListener("mouseup", function(event) {
-        mousePressed = false;
+        flags.mouseDown = false;
+        flags.setPlanet = false;
+        flags.setOrigin = false;
+    })
+
+    document.addEventListener("visibilitychange", function() {
+        // When the page is tabbed out or reopened, reset time.
+        // Since the page is not running, time will only update
+        // once back to the page, which will update deltaTime.
+        // This does not fix physics breaking caused by lag
+        time = undefined;
     })
 
     function squaringRatios() {
@@ -192,14 +225,14 @@ function main(shaders)
         sendCommonUniforms(prog);
 
         // Send the bodies' positions
-        for(let i = 0; i < bodies.length; i++) {
+        for(let i = 0; i < planets.length; i++) {
             // Get the location of the uniforms...
             const uPosition = gl.getUniformLocation(prog, `uPosition[${i}]`);
             const uRadius = gl.getUniformLocation(prog, `uRadius[${i}]`);
 
             // Send the corresponding values to the GLSL program
-            gl.uniform2fv(uPosition, bodies[i].position);
-            gl.uniform1f(uRadius, bodies[i].radius);
+            gl.uniform2fv(uPosition, planets[i].position);
+            gl.uniform1f(uRadius, planets[i].radius);
         }
     }
 
@@ -292,22 +325,17 @@ function main(shaders)
             time = timestamp / 1000;
         }
 
-        // Fix sporadic behaviour when tabbed out
-        if (deltaTime > 0.1) {
-            deltaTime = 0;
-        }
-
         // Request next animation frame
         window.requestAnimationFrame(animate);
 
         // Clear framebuffer
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        if(drawField) drawQuad();
+        if(flags.drawField) drawQuad();
 
         updateParticles(deltaTime);
         
-        if(drawPoints) drawParticles(outParticlesBuffer, N_PARTICLES);
+        if(flags.drawPoints) drawParticles(outParticlesBuffer, N_PARTICLES);
 
         swapParticlesBuffers();
     }
