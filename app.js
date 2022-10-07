@@ -14,6 +14,7 @@ let drawField = true;
 
 let time = undefined;
 let mousePosition = [0.0, 0.0];
+let mouseDown = false;
 
 let userConstants = {
     uTvmin: 2.0,
@@ -98,7 +99,8 @@ function main(shaders)
     
     canvas.addEventListener("mousedown", function(event) {
         if (bodies.length == MAX_PLANETS) return;
-        bodies.push({position: mousePosition, radius: 0.2});
+        bodies.push({position: mousePosition, radius: 0.0});
+        mouseDown = true;
     });
 
     canvas.addEventListener("mousemove", function(event) {
@@ -111,9 +113,19 @@ function main(shaders)
         const [w, h] = squaringRatios();
 
         mousePosition = vec2(x * w, y * h);
+
+        if (mouseDown) {
+            let body = bodies[bodies.length - 1];
+            let [bx, by] = body.position;
+            let [mx, my] = mousePosition;
+            let dx = mx - bx;
+            let dy = my - by;
+            body.radius = Math.sqrt(dx * dx + dy * dy);
+        }
     });
 
     canvas.addEventListener("mouseup", function(event) {
+        mouseDown = false;
     })
 
     function squaringRatios() {
@@ -170,7 +182,9 @@ function main(shaders)
         gl.uniform2fv(uScale, squaringRatios());
 
         for (let unif in userConstants) {
-            gl.getUniformLocation(prog, unif);
+            let value = [userConstants[unif]].flat()
+            gl[`uniform${value.length}fv`](
+                gl.getUniformLocation(prog, unif), value)
         }
     }
 
