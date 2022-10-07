@@ -15,6 +15,16 @@ let drawField = true;
 let time = undefined;
 let mousePosition = [0.0, 0.0];
 
+let userConstants = {
+    uTvmin: 2.0,
+    uTvmax: 10.0,
+    uAlpha: 0.0,
+    uBeta: Math.PI,
+    uVmin: 0.1,
+    uVmax: 0.2,
+    uOrigin: [0.0, 0.0]
+}
+
 const MAX_PLANETS = 10;
 let bodies = [];
 
@@ -54,6 +64,7 @@ function main(shaders)
 
     window.addEventListener("keydown", function(event) {
         // TODO: Implement user constants
+        
         switch(event.key) {
             case "PageUp":
                 break;
@@ -106,7 +117,7 @@ function main(shaders)
     })
 
     function squaringRatios() {
-        return [1.5, 1.5 / canvas.width * canvas.height];
+        return [1.5, 1.5 * canvas.height / canvas.width];
     }
 
     function buildQuad() {
@@ -138,8 +149,8 @@ function main(shaders)
             data.push(life);
 
             // velocity
-            data.push(0.1 * (Math.random() - 0.5));
-            data.push(0.1 * (Math.random() - 0.5));
+            data.push(0.0);
+            data.push(0.0);
         }
 
         inParticlesBuffer = gl.createBuffer();
@@ -155,11 +166,12 @@ function main(shaders)
     }
 
     function sendCommonUniforms(prog) {
-        const uResolution = gl.getUniformLocation(prog, "uResolution");
-        gl.uniform2f(uResolution, canvas.width, canvas.height);
-
         const uScale = gl.getUniformLocation(prog, "uScale");
-        gl.uniform2f(uScale, ...squaringRatios());
+        gl.uniform2fv(uScale, squaringRatios());
+
+        for (let unif in userConstants) {
+            gl.getUniformLocation(prog, unif);
+        }
     }
 
     function sendPlanetUniforms(prog) {
@@ -294,5 +306,4 @@ loadShadersFromURLS([
     "field-render.vert", "field-render.frag",
     "particle-update.vert", "particle-update.frag", 
     "particle-render.vert", "particle-render.frag"
-    ]
-).then(main);
+]).then(main);

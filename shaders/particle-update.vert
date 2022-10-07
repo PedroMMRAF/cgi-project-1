@@ -14,6 +14,13 @@ const float M1 = 1.0;     // Particle mass (Kg)
 const float PI = 3.141592653589793; // PI
 
 // TODO: User defined constants
+uniform float uTvmin;
+uniform float uTvmax;
+uniform float uAlpha;
+uniform float uBeta;
+uniform float uVmin;
+uniform float uVmax;
+uniform vec2 uOrigin;
 
 // Planets
 const int MAX_PLANETS = 10;
@@ -66,18 +73,13 @@ void main() {
     vVelocityOut = vVelocity + (netForce(vPosition) / M1) * uDeltaTime;
         
     if (vAgeOut >= vLife) {
-        vLifeOut = rand(vec2(vAge, vLife)) * 8.0 + 2.0;
+        vLifeOut = rand(vec2(vAge, vLife)) * (uTvmax - uTvmin) + uTvmin;
         vAgeOut = 0.0;
 
-        const float alpha = 0.0;
-        const float beta = PI;
-        const float vmin = 0.1;
-        const float vmax = 0.2;
-
-        float angle = alpha + (rand(vPositionOut) * 2.0 - 1.0) * beta;
-        float vel = rand(vVelocityOut) * (vmax - vmin) + vmin;
+        float angle = uAlpha + (rand(vPositionOut) * 2.0 - 1.0) * uBeta;
+        float vel = rand(vVelocityOut) * (uVmax - uVmin) + uVmin;
 
         vVelocityOut = vec2(cos(angle), sin(angle)) * vel;
-        vPositionOut = vec2(0.0);
+        vPositionOut = uOrigin;
     }
 }

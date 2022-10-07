@@ -1,7 +1,6 @@
 precision highp float;
 
 // Canvas size
-uniform vec2 uResolution;
 uniform vec2 uScale;
 
 // Constants
@@ -18,6 +17,8 @@ const int MAX_PLANETS = 10;
 uniform float uRadius[MAX_PLANETS];
 uniform vec2 uPosition[MAX_PLANETS];
 
+varying vec2 position;
+
 vec2 netForce(vec2 pos) {
     vec2 totalForce = vec2(0.0);
 
@@ -33,8 +34,7 @@ vec2 netForce(vec2 pos) {
 }
 
 void main() {
-    vec2 pos = gl_FragCoord.xy / uResolution;
-    pos = (pos * 2.0 - 1.0) * uScale;
+    vec2 pos = position * uScale;
 
     vec2 force = netForce(pos);
     float f = length(force);
