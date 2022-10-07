@@ -32,17 +32,17 @@ vec2 netForce(vec2 pos) {
     return M1 * G * RE * (4.0 * PI * RHO / 3.0) * totalForce;
 }
 
-vec3 hueColor(float hue) {
-    return clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-}
-
 void main() {
     vec2 pos = gl_FragCoord.xy / uResolution;
     pos = (pos * 2.0 - 1.0) * uScale;
 
     vec2 force = netForce(pos);
-    float p = length(force);
-    float alpha = clamp(p, 0.0, 1.0) * step(mod(log(p), 0.6), 0.5);
+    float f = length(force);
+    
+    float hue = atan(force.y, force.x) / (2.0 * PI);
+    vec3 color = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+    
+    float alpha = clamp(f, 0.0, 1.0) * step(mod(log(f), 0.6), 0.5);
 
-    gl_FragColor = vec4(hueColor(atan(force.y, force.x) / (2.0 * PI)), alpha);
+    gl_FragColor = vec4(color, alpha);
 }
