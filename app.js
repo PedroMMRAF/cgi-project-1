@@ -14,7 +14,7 @@ let drawField = true;
 
 let time = undefined;
 let mousePosition = [0.0, 0.0];
-let mouseDown = false;
+let mousePressed = false;
 
 let userConstants = {
     uTvmin: 2.0,
@@ -100,7 +100,7 @@ function main(shaders)
     canvas.addEventListener("mousedown", function(event) {
         if (bodies.length == MAX_PLANETS) return;
         bodies.push({position: mousePosition, radius: 0.0});
-        mouseDown = true;
+        mousePressed = true;
     });
 
     canvas.addEventListener("mousemove", function(event) {
@@ -114,7 +114,7 @@ function main(shaders)
 
         mousePosition = vec2(x * w, y * h);
 
-        if (mouseDown) {
+        if (mousePressed) {
             let body = bodies[bodies.length - 1];
             let [bx, by] = body.position;
             let [mx, my] = mousePosition;
@@ -125,7 +125,7 @@ function main(shaders)
     });
 
     canvas.addEventListener("mouseup", function(event) {
-        mouseDown = false;
+        mousePressed = false;
     })
 
     function squaringRatios() {
