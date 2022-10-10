@@ -15,10 +15,7 @@ let mousePosition = [0.0, 0.0];
 let flags = {
     drawPoints: true,
     drawField:  true,
-    mouseDown: false,
-    shiftDown: false,
     setPlanet: false,
-    setOrigin: false,
 }
 
 let userConstants = {
@@ -70,8 +67,6 @@ function main(shaders)
 
     window.addEventListener("keydown", function(event) {
         // TODO: Implement user constants
-        flags.shiftDown = event.shiftKey;
-        
         switch(event.key) {
             case "PageUp":
                 break;
@@ -103,20 +98,9 @@ function main(shaders)
                 break;
         }
     })
-
-    window.addEventListener("keyup", function(event) {
-        flags.shiftDown = event.shiftKey;
-    })
     
     canvas.addEventListener("mousedown", function(event) {
-        flags.mouseDown = true;
-
-        if (flags.shiftDown) {
-            userConstants.uOrigin = mousePosition;
-            flags.setOrigin = flags.shiftDown;
-        }
-
-        if (planets.length < MAX_PLANETS && !flags.shiftDown) {
+        if (planets.length < MAX_PLANETS) {
             planets.push({position: mousePosition, radius: 0.0});
             flags.setPlanet = true;
         }
@@ -142,15 +126,13 @@ function main(shaders)
             body.radius = Math.sqrt(dx * dx + dy * dy);
         }
 
-        if (flags.setOrigin) {
+        if (event.shiftKey) {
             userConstants.uOrigin = mousePosition;
         }
     });
 
     canvas.addEventListener("mouseup", function(event) {
-        flags.mouseDown = false;
         flags.setPlanet = false;
-        flags.setOrigin = false;
     })
 
     document.addEventListener("visibilitychange", function() {
@@ -190,8 +172,7 @@ function main(shaders)
             data.push(0.0);
 
             // life
-            const life = 6.0 + Math.random();
-            data.push(life);
+            data.push(Math.random() * 8.0 + 2.0);
 
             // velocity
             data.push(0.0);

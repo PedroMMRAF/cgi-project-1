@@ -73,11 +73,11 @@ void main() {
     vVelocityOut = vVelocity + (netForce(vPosition) / M1) * uDeltaTime;
         
     if (vAgeOut >= vLife) {
-        vLifeOut = rand(vec2(vAge, vLife)) * (uTvmax - uTvmin) + uTvmin;
+        vLifeOut = rand(vec2(vLife, vLife)) * (uTvmax - uTvmin) + uTvmin;
         vAgeOut = 0.0;
 
-        float angle = uAlpha + (rand(vPositionOut) * 2.0 - 1.0) * uBeta;
-        float vel = rand(vVelocityOut) * (uVmax - uVmin) + uVmin;
+        float angle = uAlpha + (rand(vPositionOut.yx) * 2.0 - 1.0) * uBeta;
+        float vel = rand(vPositionOut) * (uVmax - uVmin) + uVmin;
 
         vVelocityOut = vec2(cos(angle), sin(angle)) * vel;
         vPositionOut = uOrigin;

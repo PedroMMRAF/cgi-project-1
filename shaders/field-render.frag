@@ -42,7 +42,7 @@ void main() {
     float hue = atan(force.y, force.x) / (2.0 * PI);
     vec3 color = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
     
-    float alpha = clamp(f, 0.0, 1.0) * step(mod(log(f), 0.6), 0.5);
+    float alpha = clamp(f, 0.0, 1.0) * step(mod(log(f), 0.8), 0.7);
 
     gl_FragColor = vec4(color, alpha);
 }
