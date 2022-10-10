@@ -1,16 +1,11 @@
 precision highp float;
 
-// Canvas size
-uniform vec2 uScale;
-
 // Constants
 const float G = 6.67e-11; // Gravitational constant
 const float RHO = 5.51e3; // Planet density
 const float RE = 6.371e6; // Scale factor
 const float M1 = 1.0;     // Particle mass (Kg)
 const float PI = 3.141592653589793; // PI
-
-// TODO: User defined constants
 
 // Planets
 const int MAX_PLANETS = 10;
@@ -34,9 +29,7 @@ vec2 netForce(vec2 pos) {
 }
 
 void main() {
-    vec2 pos = position * uScale;
-
-    vec2 force = netForce(pos);
+    vec2 force = netForce(position);
     float f = length(force);
     
     float hue = atan(force.y, force.x) / (2.0 * PI);
