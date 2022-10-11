@@ -5,20 +5,25 @@ import { vec2, flatten, subtract, dot } from '../../libs/MV.js';
 let inParticlesBuffer, outParticlesBuffer, quadBuffer;
 
 // Particle system constants
-
 // Total number of particles
 const N_PARTICLES = 100000;
 
-let time = undefined;
-let mousePosition = [0.0, 0.0];
+const MAX_PLANETS = 10;
+let planets = [];
+
+let prevTime = undefined;
 
 let flags = {
     drawPoints: true,
-    drawField:  true,
+    drawField: true,
     setPlanet: false,
 }
 
-let userConstants = {
+let uniforms = {
+    // Automatic
+    uScale: [0.0, 0.0],
+    uDeltaTime: 0.0,
+    // User controllable
     uTvmin: 2.0,
     uTvmax: 10.0,
     uAlpha: 0.0,
@@ -28,157 +33,169 @@ let userConstants = {
     uOrigin: [0.0, 0.0]
 }
 
-const MAX_PLANETS = 10;
-let planets = [];
-
-function main(shaders)
-{
+function main(shaders) {
     // Generate the canvas element to fill the entire page
     const canvas = document.createElement("canvas");
     document.body.appendChild(canvas);
-    
-    canvas.width =  window.innerWidth;
-    canvas.height = window.innerHeight;
-    
 
     /** type {WebGL2RenderingContext} */
-    const gl = setupWebGL(canvas, {alpha: true});
+    const gl = setupWebGL(canvas, { alpha: true });
 
     // Initialize GLSL programs    
-    const fieldProgram = buildProgramFromSources(gl, shaders["field-render.vert"], shaders["field-render.frag"]);
-    const renderProgram = buildProgramFromSources(gl, shaders["particle-render.vert"], shaders["particle-render.frag"]);
-    const updateProgram = buildProgramFromSources(gl, shaders["particle-update.vert"], shaders["particle-update.frag"], ["vPositionOut", "vAgeOut", "vLifeOut", "vVelocityOut"]);
+    const fieldProgram = buildProgramFromSources(gl, shaders["field-render.vert"],
+        shaders["field-render.frag"]);
+    const renderProgram = buildProgramFromSources(gl, shaders["particle-render.vert"],
+        shaders["particle-render.frag"]);
+    const updateProgram = buildProgramFromSources(gl, shaders["particle-update.vert"],
+        shaders["particle-update.frag"], ["vPositionOut", "vAgeOut", "vLifeOut", "vVelocityOut"]);
 
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        uniforms.uScale = vec2(1.5, 1.5 * canvas.height / canvas.width);
+    }
+
+    resizeCanvas();
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
     // Enable Alpha blending
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); 
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     buildQuad();
     buildParticleSystem(N_PARTICLES);
 
-    window.addEventListener("resize", function(event) {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
-        gl.viewport(0, 0, canvas.width, canvas.height);
-    });
+    window.addEventListener("resize", resizeCanvas);
 
-    window.addEventListener("keydown", function(event) {
-        // TODO: Implement user constants
-        switch(event.key) {
+    window.addEventListener("keydown", function (event) {
+        switch (event.key) {
             case "PageUp":
+                if (event.shiftKey)
+                    uniforms.uVmin += 0.05;
+                else
+                    uniforms.uVmax += 0.05;
                 break;
             case "PageDown":
+                if (event.shiftKey)
+                    uniforms.uVmin -= 0.05;
+                else
+                    uniforms.uVmax -= 0.05;
                 break;
             case "ArrowUp":
+                uniforms.uBeta += 0.1 + Math.PI;
+                uniforms.uBeta = uniforms.uBeta % (Math.PI * 2);
+                uniforms.uBeta -= Math.PI;
                 break;
             case "ArrowDown":
+                uniforms.uBeta -= 0.1 - Math.PI;
+                uniforms.uBeta = uniforms.uBeta % (Math.PI * 2);
+                uniforms.uBeta -= Math.PI;
                 break;
             case "ArrowLeft":
+                uniforms.uAlpha += 0.1;
                 break;
             case "ArrowRight":
+                uniforms.uAlpha -= 0.1;
                 break;
             case 'q':
+                uniforms.uTvmin = Math.min(uniforms.uTvmin + 1, 19);
                 break;
             case 'a':
+                uniforms.uTvmin = Math.max(uniforms.uTvmin - 1, 1);
                 break;
             case 'w':
+                uniforms.uTvmax = Math.min(uniforms.uTvmax + 1, 20);
                 break;
             case 's':
+                uniforms.uTvmax = Math.max(uniforms.uTvmax - 1, 2);
                 break;
             case '0':
                 flags.drawField = !flags.drawField;
                 break;
             case '9':
-                flags.drawPoints  = !flags.drawPoints;
-                break; 
+                flags.drawPoints = !flags.drawPoints;
+                break;
             case 'Shift':
                 break;
         }
     })
-    
-    canvas.addEventListener("mousedown", function(event) {
+
+    canvas.addEventListener("mousedown", function (event) {
         if (planets.length < MAX_PLANETS) {
-            planets.push({position: mousePosition, radius: 0.0});
+            planets.push({ position: getCursorPosition(event), radius: 0.0 });
             flags.setPlanet = true;
         }
     });
 
-    canvas.addEventListener("mousemove", function(event) {
+    canvas.addEventListener("mousemove", function (event) {
+        const cursor = getCursorPosition(event);
+
+        if (flags.setPlanet) {
+            let body = planets[planets.length - 1];
+            body.radius = distance(body.position, cursor);
+        }
+
+        if (event.shiftKey) {
+            uniforms.uOrigin = cursor;
+        }
+    });
+
+    canvas.addEventListener("mouseup", function (event) {
+        flags.setPlanet = false;
+    })
+
+    document.addEventListener("visibilitychange", function (event) {
+        prevTime = undefined;
+    })
+
+    function distance(v1, v2) {
+        const dx = v1[0] - v2[0];
+        const dy = v1[1] - v2[1];
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getCursorPosition(event) {
         const mx = event.offsetX;
         const my = event.offsetY;
 
         const x = ((mx / canvas.width * 2) - 1);
-        const y = (((1 - my / canvas.height) * 2) -1);
-        
-        const [w, h] = squaringRatios();
+        const y = (((1 - my / canvas.height) * 2) - 1);
 
-        mousePosition = vec2(x * w, y * h);
-
-        if (flags.setPlanet) {
-            let body = planets[planets.length - 1];
-            let [bx, by] = body.position;
-            let [mx, my] = mousePosition;
-            let dx = mx - bx;
-            let dy = my - by;
-            body.radius = Math.sqrt(dx * dx + dy * dy);
-        }
-
-        if (event.shiftKey) {
-            userConstants.uOrigin = mousePosition;
-        }
-    });
-
-    canvas.addEventListener("mouseup", function(event) {
-        flags.setPlanet = false;
-    })
-
-    document.addEventListener("visibilitychange", function() {
-        // When the page is tabbed out or reopened, reset time.
-        // Since the page is not running, time will only update
-        // once back to the page, which will update deltaTime.
-        // This does not fix physics breaking caused by lag
-        time = undefined;
-    })
-
-    function squaringRatios() {
-        return [1.5, 1.5 * canvas.height / canvas.width];
+        return vec2(uniforms.uScale[0] * x, uniforms.uScale[1] * y);
     }
 
+    // Creates a square that fills the canvas, used by the field.
     function buildQuad() {
         const vertices = [-1.0, 1.0, -1.0, -1.0, 1.0, -1.0,
-                          -1.0, 1.0,  1.0, -1.0, 1.0,  1.0];
-        
+        -1.0, 1.0, 1.0, -1.0, 1.0, 1.0];
+
         quadBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
     }
 
+    // Creates all of the particles with a set of initial conditions.
     function buildParticleSystem(nParticles) {
         const data = [];
 
-        let [w, h] = squaringRatios();
+        for (let i = 0; i < nParticles; ++i) {
+            // Position (x, y)
+            data.push(uniforms.uScale[0] * (Math.random() * 2 - 1));
+            data.push(uniforms.uScale[1] * (Math.random() * 2 - 1));
 
-        for(let i = 0; i < nParticles; ++i) {
-            // position
-            const x = Math.random() * w * 2 - w;
-            const y = Math.random() * h * 2 - h;
-
-            data.push(x); data.push(y);
-            
-            // age
+            // Age
             data.push(0.0);
 
-            // life
+            // Life
             data.push(Math.random() * 8.0 + 2.0);
 
-            // velocity
+            // Velocity
             data.push(0.0);
             data.push(0.0);
         }
 
+        // Particle buffers
         inParticlesBuffer = gl.createBuffer();
         outParticlesBuffer = gl.createBuffer();
 
@@ -191,25 +208,26 @@ function main(shaders)
         gl.bufferData(gl.ARRAY_BUFFER, flatten(data), gl.STREAM_DRAW);
     }
 
-    function sendCommonUniforms(prog) {
-        const uScale = gl.getUniformLocation(prog, "uScale");
-        gl.uniform2fv(uScale, squaringRatios());
-
-        for (let unif in userConstants) {
-            let value = [userConstants[unif]].flat()
+    // Loads every uniform onto the given program
+    function loadUniforms(program) {
+        // Iterate through every property
+        for (let name in uniforms) {
+            // Creates singleton vectors for values
+            // while keeping other vectors intact
+            let value = [uniforms[name]].flat()
+            // Sends uniforms dynamically
             gl[`uniform${value.length}fv`](
-                gl.getUniformLocation(prog, unif), value)
+                gl.getUniformLocation(program, name), value)
         }
     }
 
-    function sendPlanetUniforms(prog) {
-        sendCommonUniforms(prog);
-
+    // Loads every planet uniform onto the given program
+    function loadPlanetUniforms(program) {
         // Send the bodies' positions
-        for(let i = 0; i < planets.length; i++) {
+        for (let i = 0; i < planets.length; i++) {
             // Get the location of the uniforms...
-            const uPosition = gl.getUniformLocation(prog, `uPosition[${i}]`);
-            const uRadius = gl.getUniformLocation(prog, `uRadius[${i}]`);
+            const uPosition = gl.getUniformLocation(program, `uPosition[${i}]`);
+            const uRadius = gl.getUniformLocation(program, `uRadius[${i}]`);
 
             // Send the corresponding values to the GLSL program
             gl.uniform2fv(uPosition, planets[i].position);
@@ -217,16 +235,12 @@ function main(shaders)
         }
     }
 
-    function updateParticles(deltaTime)
-    {
+    function updateParticles() {
         gl.useProgram(updateProgram);
-        
-        // Setup uniforms
-        const uDeltaTime = gl.getUniformLocation(updateProgram, "uDeltaTime");
-        gl.uniform1f(uDeltaTime, deltaTime);
 
-        sendPlanetUniforms(updateProgram);
-        
+        loadUniforms(updateProgram);
+        loadPlanetUniforms(updateProgram);
+
         // Setup attributes
         const vPosition = gl.getAttribLocation(updateProgram, "vPosition");
         const vAge = gl.getAttribLocation(updateProgram, "vAge");
@@ -234,12 +248,12 @@ function main(shaders)
         const vVelocity = gl.getAttribLocation(updateProgram, "vVelocity");
 
         gl.bindBuffer(gl.ARRAY_BUFFER, inParticlesBuffer);
-        
+
         gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 24, 0);
         gl.vertexAttribPointer(vAge, 1, gl.FLOAT, false, 24, 8);
         gl.vertexAttribPointer(vLife, 1, gl.FLOAT, false, 24, 12);
         gl.vertexAttribPointer(vVelocity, 2, gl.FLOAT, false, 24, 16);
-        
+
         gl.enableVertexAttribArray(vPosition);
         gl.enableVertexAttribArray(vAge);
         gl.enableVertexAttribArray(vLife);
@@ -254,8 +268,7 @@ function main(shaders)
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
     }
 
-    function swapParticlesBuffers()
-    {
+    function swapParticlesBuffers() {
         let auxBuffer = inParticlesBuffer;
         inParticlesBuffer = outParticlesBuffer;
         outParticlesBuffer = auxBuffer;
@@ -264,28 +277,28 @@ function main(shaders)
     function drawQuad() {
         gl.useProgram(fieldProgram);
 
-        sendPlanetUniforms(fieldProgram);
+        loadUniforms(fieldProgram);
+        loadPlanetUniforms(fieldProgram);
 
         // Setup attributes
-        const vPosition = gl.getAttribLocation(fieldProgram, "vPosition"); 
+        const vPosition = gl.getAttribLocation(fieldProgram, "vPosition");
 
         gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
         gl.enableVertexAttribArray(vPosition);
         gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
-        
+
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
-    function drawParticles(buffer, nParticles)
-    {
+    function drawParticles(nParticles) {
         gl.useProgram(renderProgram);
 
-        sendCommonUniforms(renderProgram);
+        loadUniforms(renderProgram);
 
         // Setup attributes
         const vPosition = gl.getAttribLocation(renderProgram, "vPosition");
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bindBuffer(gl.ARRAY_BUFFER, outParticlesBuffer);
 
         gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 24, 0);
         gl.enableVertexAttribArray(vPosition);
@@ -293,18 +306,15 @@ function main(shaders)
         gl.drawArrays(gl.POINTS, 0, nParticles);
     }
 
-    function animate(timestamp)
-    {
-        let deltaTime = 0;
+    function animate(currTime) {
+        // Time was in milliseconds, set it to be in seconds
+        currTime /= 1000;
 
-        if(time === undefined) {        // First time
-            time = timestamp / 1000;
-            deltaTime = 0;
-        } 
-        else {                          // All other times
-            deltaTime = timestamp / 1000 - time;
-            time = timestamp / 1000;
-        }
+        // deltaTime is difference of time between frames, in seconds,
+        // except for the first frame, where that difference is 0
+        uniforms.uDeltaTime = prevTime === undefined ? 0 : currTime - prevTime;
+
+        prevTime = currTime;
 
         // Request next animation frame
         window.requestAnimationFrame(animate);
@@ -312,11 +322,11 @@ function main(shaders)
         // Clear framebuffer
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        if(flags.drawField) drawQuad();
+        if (flags.drawField) drawQuad();
 
-        updateParticles(deltaTime);
-        
-        if(flags.drawPoints) drawParticles(outParticlesBuffer, N_PARTICLES);
+        updateParticles();
+
+        if (flags.drawPoints) drawParticles(N_PARTICLES);
 
         swapParticlesBuffers();
     }
@@ -327,6 +337,6 @@ function main(shaders)
 
 loadShadersFromURLS([
     "field-render.vert", "field-render.frag",
-    "particle-update.vert", "particle-update.frag", 
+    "particle-update.vert", "particle-update.frag",
     "particle-render.vert", "particle-render.frag"
 ]).then(main);
