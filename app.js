@@ -1,5 +1,5 @@
 import { buildProgramFromSources, loadShadersFromURLS, setupWebGL } from '../../libs/utils.js';
-import { vec2, flatten, subtract, dot } from '../../libs/MV.js';
+import { vec2, flatten } from '../../libs/MV.js';
 
 // Buffers: particles before update, particles after update, quad vertices
 let inParticlesBuffer, outParticlesBuffer, quadBuffer;
@@ -84,12 +84,12 @@ function main(shaders) {
                 break;
             case "ArrowUp":
                 uniforms.uBeta += 0.1 + Math.PI;
-                uniforms.uBeta = uniforms.uBeta % (Math.PI * 2);
+                uniforms.uBeta %= Math.PI * 2;
                 uniforms.uBeta -= Math.PI;
                 break;
             case "ArrowDown":
                 uniforms.uBeta -= 0.1 - Math.PI;
-                uniforms.uBeta = uniforms.uBeta % (Math.PI * 2);
+                uniforms.uBeta %= Math.PI * 2;
                 uniforms.uBeta -= Math.PI;
                 break;
             case "ArrowLeft":
@@ -115,8 +115,6 @@ function main(shaders) {
                 break;
             case '9':
                 flags.drawPoints = !flags.drawPoints;
-                break;
-            case 'Shift':
                 break;
         }
     })
@@ -188,7 +186,7 @@ function main(shaders) {
             data.push(0.0);
 
             // Life
-            data.push(Math.random() * 8.0 + 2.0);
+            data.push(Math.random() * (uniforms.uTvmax - uniforms.uTvmin) + uniforms.uTvmin);
 
             // Velocity
             data.push(0.0);
@@ -210,7 +208,7 @@ function main(shaders) {
 
     // Loads every uniform onto the given program
     function loadUniforms(program) {
-        // Iterate through every property
+        // Iterate through every uniform name
         for (let name in uniforms) {
             // Creates singleton vectors for values
             // while keeping other vectors intact
