@@ -20,7 +20,7 @@ vec2 netForce(vec2 pos) {
     for (int i = 0; i < MAX_PLANETS; i++) {
         vec2 dist = uPosition[i] - pos;
         float radius = uRadius[i];
-        
+
         if (radius > 0.0)
             totalForce += normalize(dist) * radius * radius * radius / dot(dist, dist);
     }
@@ -35,7 +35,7 @@ void main() {
     float hue = atan(force.y, force.x) / (2.0 * PI);
     vec3 color = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
     
-    float alpha = clamp(f, 0.0, 1.0) * step(mod(log(f), 0.8), 0.7);
+    float alpha = clamp(f, 0.0, 1.0) * step(mod(log(f) / 2.0, 0.4), 0.35);
 
     gl_FragColor = vec4(color, alpha);
 }

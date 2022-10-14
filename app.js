@@ -83,14 +83,12 @@ function main(shaders) {
                     uniforms.uVmax -= 0.05;
                 break;
             case "ArrowUp":
-                uniforms.uBeta += 0.1 + Math.PI;
-                uniforms.uBeta %= Math.PI * 2;
-                uniforms.uBeta -= Math.PI;
+                uniforms.uBeta += Math.PI / 36;
+                uniforms.uBeta = Math.min(uniforms.uBeta, Math.PI);
                 break;
             case "ArrowDown":
-                uniforms.uBeta -= 0.1 - Math.PI;
-                uniforms.uBeta %= Math.PI * 2;
-                uniforms.uBeta -= Math.PI;
+                uniforms.uBeta -= Math.PI / 36;
+                uniforms.uBeta = Math.max(uniforms.uBeta, 0.0);
                 break;
             case "ArrowLeft":
                 uniforms.uAlpha += 0.1;
@@ -99,16 +97,20 @@ function main(shaders) {
                 uniforms.uAlpha -= 0.1;
                 break;
             case 'q':
-                uniforms.uTvmin = Math.min(uniforms.uTvmin + 1, 19);
+                uniforms.uTvmin += 1;
+                uniforms.uTvmin = Math.min(uniforms.uTvmin, 19);
                 break;
             case 'a':
-                uniforms.uTvmin = Math.max(uniforms.uTvmin - 1, 1);
+                uniforms.uTvmin -= 1;
+                uniforms.uTvmin = Math.max(uniforms.uTvmin, 1);
                 break;
             case 'w':
-                uniforms.uTvmax = Math.min(uniforms.uTvmax + 1, 20);
+                uniforms.uTvmax += 1;
+                uniforms.uTvmax = Math.min(uniforms.uTvmax, 20);
                 break;
             case 's':
-                uniforms.uTvmax = Math.max(uniforms.uTvmax - 1, 2);
+                uniforms.uTvmax -= 1;
+                uniforms.uTvmax = Math.max(uniforms.uTvmax, 2);
                 break;
             case '0':
                 flags.drawField = !flags.drawField;
@@ -119,11 +121,23 @@ function main(shaders) {
         }
     })
 
+    const LEFT_CLICK = 0;
+    const RIGHT_BUTTON = 2;
+
     canvas.addEventListener("mousedown", function (event) {
-        if (planets.length < MAX_PLANETS) {
-            planets.push({ position: getCursorPosition(event), radius: 0.0 });
+        const cursor = getCursorPosition(event);
+
+        if (event.button == RIGHT_BUTTON) {
+            planets = planets.filter(planet => 
+                distance(planet.position, cursor) > planet.radius)
+        }
+
+        if (planets.length < MAX_PLANETS && event.button == LEFT_CLICK) {
+            planets.push({ position: cursor, radius: 0.0 });
             flags.setPlanet = true;
         }
+
+        console.log(planets)
     });
 
     canvas.addEventListener("mousemove", function (event) {
@@ -222,14 +236,16 @@ function main(shaders) {
     // Loads every planet uniform onto the given program
     function loadPlanetUniforms(program) {
         // Send the bodies' positions
-        for (let i = 0; i < planets.length; i++) {
+        for (let i = 0; i < MAX_PLANETS; i++) {
             // Get the location of the uniforms...
             const uPosition = gl.getUniformLocation(program, `uPosition[${i}]`);
             const uRadius = gl.getUniformLocation(program, `uRadius[${i}]`);
 
+            const planet = planets[i] || {position: [0, 0], radius: 0}
+
             // Send the corresponding values to the GLSL program
-            gl.uniform2fv(uPosition, planets[i].position);
-            gl.uniform1f(uRadius, planets[i].radius);
+            gl.uniform2fv(uPosition, planet.position);
+            gl.uniform1f(uRadius, planet.radius);
         }
     }
 
