@@ -21,8 +21,9 @@ let flags = {
 
 let uniforms = {
     // Automatic
-    uScale: [0.0, 0.0],
+    uScale: vec2(0.0, 0.0),
     uDeltaTime: 0.0,
+
     // User controllable
     uTvmin: 2.0,
     uTvmax: 10.0,
@@ -30,15 +31,13 @@ let uniforms = {
     uBeta: Math.PI,
     uVmin: 0.1,
     uVmax: 0.2,
-    uOrigin: [0.0, 0.0]
+    uOrigin: vec2(0.0, 0.0)
 }
 
 function main(shaders) {
     // Generate the canvas element to fill the entire page
     const canvas = document.createElement("canvas");
     document.body.appendChild(canvas);
-
-    /** type {WebGL2RenderingContext} */
     const gl = setupWebGL(canvas, { alpha: true });
 
     // Initialize GLSL programs    
@@ -49,6 +48,8 @@ function main(shaders) {
     const updateProgram = buildProgramFromSources(gl, shaders["particle-update.vert"],
         shaders["particle-update.frag"], ["vPositionOut", "vAgeOut", "vLifeOut", "vVelocityOut"]);
 
+    // This function is ran once at the start of the program
+    // and everytime the canvas is resized
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -88,7 +89,7 @@ function main(shaders) {
                 break;
             case "ArrowDown":
                 uniforms.uBeta -= Math.PI / 36;
-                uniforms.uBeta = Math.max(uniforms.uBeta, 0.0);
+                uniforms.uBeta = Math.max(uniforms.uBeta, -Math.PI);
                 break;
             case "ArrowLeft":
                 uniforms.uAlpha += 0.1;
@@ -121,52 +122,64 @@ function main(shaders) {
         }
     })
 
+    // Mouse buttons
     const LEFT_CLICK = 0;
     const RIGHT_BUTTON = 2;
 
     canvas.addEventListener("mousedown", function (event) {
         const cursor = getCursorPosition(event);
 
-        if (event.button == RIGHT_BUTTON) {
+        // On right click, delete every planet the mouse is over
+        // Don't do anything if a planet is currently being set
+        if (!flags.setPlanet && event.button == RIGHT_BUTTON) {
             planets = planets.filter(planet => 
                 distance(planet.position, cursor) > planet.radius)
         }
 
+        // On left click, start creating a planet
         if (planets.length < MAX_PLANETS && event.button == LEFT_CLICK) {
             planets.push({ position: cursor, radius: 0.0 });
             flags.setPlanet = true;
         }
-
-        console.log(planets)
     });
 
     canvas.addEventListener("mousemove", function (event) {
         const cursor = getCursorPosition(event);
 
+        // While a planet is being set, change it's radius
         if (flags.setPlanet) {
             let body = planets[planets.length - 1];
             body.radius = distance(body.position, cursor);
         }
 
+        // Particle's origin point while the shift key is pressed
         if (event.shiftKey) {
             uniforms.uOrigin = cursor;
         }
     });
 
     canvas.addEventListener("mouseup", function (event) {
+        // Finish setting any planet that might be being set
         flags.setPlanet = false;
     })
 
+    // This event runs everytime the page's visibility changes
+    // (such as when the window is minimized).
     document.addEventListener("visibilitychange", function (event) {
+        // Resetting the prevTime will set uDeltaTime to 0 on the next
+        // frame, preventing the particles from de-synchronizing
         prevTime = undefined;
     })
 
+    // Euclidean distance between two points (or vectors)
     function distance(v1, v2) {
         const dx = v1[0] - v2[0];
         const dy = v1[1] - v2[1];
         return Math.sqrt(dx * dx + dy * dy);
     }
 
+    // Mouse coordinates scaled by the desired canvas scale
+    // (width between [-1.5, 1.5] while maintaining aspect ratio)
     function getCursorPosition(event) {
         const mx = event.offsetX;
         const my = event.offsetY;
@@ -223,12 +236,16 @@ function main(shaders) {
     // Loads every uniform onto the given program
     function loadUniforms(program) {
         // Iterate through every uniform name
-        for (let name in uniforms) {
-            // Creates singleton vectors for values
-            // while keeping other vectors intact
-            let value = [uniforms[name]].flat()
-            // Sends uniforms dynamically
-            gl[`uniform${value.length}fv`](
+        for (const name in uniforms) {
+            // Get the uniform's value
+            const value = uniforms[name];
+            
+            // See if the uniform is a vector and get it's length
+            const vector = value instanceof Array ? "v" : "";
+            const length = vector ? value.length : 1;
+
+            // Send the uniform
+            gl[`uniform${length}f${vector}`](
                 gl.getUniformLocation(program, name), value)
         }
     }
@@ -241,7 +258,10 @@ function main(shaders) {
             const uPosition = gl.getUniformLocation(program, `uPosition[${i}]`);
             const uRadius = gl.getUniformLocation(program, `uRadius[${i}]`);
 
-            const planet = planets[i] || {position: [0, 0], radius: 0}
+            // Get the planet by index
+            // If it doesn't exist, send dummy data since
+            // deleting planets causes values to need to be reset
+            const planet = planets[i] || {position: vec2(0, 0), radius: 0}
 
             // Send the corresponding values to the GLSL program
             gl.uniform2fv(uPosition, planet.position);
@@ -324,10 +344,11 @@ function main(shaders) {
         // Time was in milliseconds, set it to be in seconds
         currTime /= 1000;
 
-        // deltaTime is difference of time between frames, in seconds,
+        // deltaTime is the difference of time between frames, in seconds,
         // except for the first frame, where that difference is 0
         uniforms.uDeltaTime = prevTime === undefined ? 0 : currTime - prevTime;
 
+        // Set the previous time for the next frame
         prevTime = currTime;
 
         // Request next animation frame
